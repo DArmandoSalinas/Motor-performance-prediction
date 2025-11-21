@@ -1,0 +1,23 @@
+# Motor Preventive Monitoring System
+# Python Dependencies
+
+# Core data processing
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Serial communication
+pyserial>=3.5
+
+# Web dashboard
+streamlit>=1.28.0
+
+# Visualization
+plotly>=5.18.0
+
+# Optional: For better performance
+scipy>=1.11.0
+
+
+
+
+
