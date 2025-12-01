@@ -190,8 +190,8 @@ To create your own baseline profile:
 Edit thresholds in `anomaly_engine.py`:
 
 ```python
-self.z_caution = 2.0  # Change to 1.5 for more sensitive
-self.z_danger = 3.0   # Change to 2.5 for more sensitive
+self.z_caution = 1.2  # Change more sensitive
+self.z_danger = 2.0   # Change more sensitive
 ```
 
 ### Customizing UI Colors
