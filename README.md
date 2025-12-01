@@ -1,6 +1,6 @@
 # Motor Preventive Monitoring System
 
-🍏 **Premium Apple-Style Real-Time Dashboard for Industrial Motor Health Monitoring**
+** Real-Time Dashboard for Industrial Motor Health Monitoring**
 
 An industrial-grade, interpretable preventive maintenance system for Sumitomo 3-phase induction motors. Features real-time vibration and temperature monitoring with multi-speed baseline profiling.
 
@@ -134,7 +134,7 @@ Serial.println(temp_C, 2);
 
 ### Health Gauges
 - **Vibration Health** - Real-time vibration magnitude scoring
-- **Temperature Health** - Temperature deviation and rate-of-change scoring
+- **Temperature Health** - Temperature rate-of-change and limits scoring
 - **Overall Health** - Combined system health metric
 
 ### Status States
@@ -166,10 +166,7 @@ Serial.println(temp_C, 2);
 4. Convert to 0-100 health score
 
 ### Temperature Analysis
-1. Analyze mean temperature deviation
-2. Compute temperature rate of change (°C/s)
-3. Compare both metrics to baseline
-4. Use worst deviation for health score
+1. Compute temperature rate of change (°C/s)
 
 ### Overall Health
 - `overall_health = min(vibration_health, temperature_health)`
