@@ -160,9 +160,9 @@ Serial.println(temp_C, 2);
 1. Compute vibration magnitude: `vib = sqrt(ax² + ay² + az²)`
 2. Calculate z-score: `z = (current_mean - baseline_mean) / baseline_std`
 3. Apply threshold bands:
-   - Normal: z ≤ 2σ
-   - Caution: 2σ < z ≤ 3σ
-   - Danger: z > 3σ
+   - Normal: z ≤ 1.2σ
+   - Caution: 1.2σ < z ≤ 2σ
+   - Danger: z > 2σ
 4. Convert to 0-100 health score
 
 ### Temperature Analysis
