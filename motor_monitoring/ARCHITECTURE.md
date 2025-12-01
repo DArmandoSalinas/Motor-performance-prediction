@@ -183,10 +183,12 @@ sleep(target_time - current_time)
 
 #### Temperature Analysis:
 ```python
-1. Calculate temp_mean and temp_std
-2. Compute temp_slope via linear regression
-3. Calculate z-scores for both mean and rate
-4. Use worst z-score for health calculation
+1. Compute temp_slope via linear regression (rate of change)
+2. Detect rapid changes (no baseline comparison):
+   - Normal: |slope| < 0.1 °C/s
+   - Caution: 0.1 ≤ |slope| < 0.5 °C/s
+   - Danger: |slope| ≥ 0.5 °C/s
+3. Enforce absolute limits: temp ≥ 40°C or ≤ 10°C → Health = 0%
 ```
 
 #### Overall Health:
@@ -515,6 +517,9 @@ Potential improvements:
 ---
 
 **This architecture prioritizes interpretability, reliability, and maintainability over complexity.**
+
+
+
 
 
 

@@ -177,7 +177,7 @@ chmod +x run.sh
 - Monitor closely
 - **Message Examples:**
   - "⚠️ Vibration elevated above normal"
-  - "⚠️ Temperature higher than baseline"
+  - "⚠️ Temperature rising rapidly (25.0°C, +0.300°C/s)"
   - "⚠️ Minor deviations detected"
 
 ### 🔴 Danger (0-30)
@@ -321,6 +321,9 @@ And start monitoring your motor health in style! 🎉
 - Overview → Review **PROJECT_SUMMARY.md**
 
 **Have fun monitoring!** 😊
+
+
+
 
 
 

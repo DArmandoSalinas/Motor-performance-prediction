@@ -4,12 +4,12 @@
 **Status:** Production Ready  
 
 ## 📖 Overview
-The **Motor Preventive Monitoring System** is an industrial-grade dashboard designed to monitor the health of Sumitomo 3-phase induction motors in real-time. It uses vibration and temperature data to detect anomalies, leveraging multi-speed statistical baselines to provide accurate, interpretable health scores.
+The **Motor Preventive Monitoring System** is an industrial-grade dashboard designed to monitor the health of Sumitomo 3-phase induction motors in real-time. It uses vibration and temperature data to detect anomalies: vibration analysis leverages multi-speed statistical baselines, while temperature analysis uses rate-of-change detection (no baseline, environment-adaptive) to provide accurate, interpretable health scores.
 
 ## ✨ Key Features
 - **Multi-Speed Support**: Pre-configured baselines for 50%, 60%, 75%, 90%, and 100% operating speeds.
 - **Real-Time Monitoring**: Live visualization of vibration magnitude and temperature trends.
-- **Intelligent Anomaly Detection**: Rule-based statistical analysis (Z-scores) to identify "Caution" and "Danger" states.
+- **Intelligent Anomaly Detection**: Rule-based statistical analysis - Z-scores for vibration (baseline comparison) and rate-of-change detection for temperature (environment-adaptive).
 - **Health Scoring**: Simple 0-100 health index for vibration and temperature.
 - **Robust Connectivity**: Threaded serial reader with auto-reconnection and error handling.
 - **Data Replay Mode**: Built-in simulation mode to test the system without live hardware.
@@ -76,5 +76,8 @@ Ensure your microcontroller is configured to stream data in this exact format.
 
 ## 📄 License
 This project is proprietary and intended for internal industrial monitoring use.
+
+
+
 
 

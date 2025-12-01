@@ -35,10 +35,14 @@ class AnomalyEngine:
         self.vib_z_caution = 1.2  # Was 1.5
         self.vib_z_danger = 2.0   # Was 2.5
         
-        # Temperature (Absolute limits instead of relative)
-        self.temp_min_safe = 15.0
-        self.temp_max_safe = 35.0
-        self.temp_tolerance = 5.0 # Tolerance beyond safe zone before danger
+        # Temperature (Rate of change only - no baseline comparison)
+        # These are absolute rate thresholds in °C/s
+        self.temp_slope_caution = 0.1   # °C/s - Caution if changing faster than this
+        self.temp_slope_danger = 0.5    # °C/s - Danger if changing faster than this
+        
+        # Absolute safety limits (hard cutoffs)
+        self.temp_min_critical = 10.0  # Critical low
+        self.temp_max_critical = 40.0  # Critical high
     
     def analyze(self, data: Dict[str, np.ndarray], window_duration: float = 2.0) -> Dict[str, Any]:
         """
@@ -100,6 +104,8 @@ class AnomalyEngine:
             'temp_std': temp_metrics['std'],
             'temp_slope': temp_metrics['slope'],
             'temp_z_score': temp_metrics['z_score'],
+            'temp_z_score_mean': temp_metrics.get('z_score_mean', 0.0),
+            'temp_z_score_rate': temp_metrics.get('z_score_rate', 0.0),
             'temp_health_score': temp_metrics['health_score'],
             'temp_state': temp_metrics['state'],
             'temp_color': temp_metrics['color'],
@@ -176,7 +182,9 @@ class AnomalyEngine:
     
     def _analyze_temperature(self, temps: np.ndarray, timestamps: np.ndarray) -> Dict[str, Any]:
         """
-        Analyze temperature data using absolute limits.
+        Analyze temperature data using rate of change (slope) detection only.
+        No baseline comparison - temperature varies with environment.
+        Absolute safety limits are enforced.
         
         Args:
             temps: Array of temperatures
@@ -204,45 +212,41 @@ class AnomalyEngine:
 
         temp_std = np.std(temps)
         
-        # Compute temperature slope
+        # Compute temperature slope (rate of change via linear regression)
         temp_slope = compute_temperature_slope(temps, timestamps)
+        temp_slope_abs = abs(temp_slope)
         
-        # --- Absolute Limit Logic ---
-        # Safe Zone: 15 - 35
-        # Caution Zone: (10-15) and (35-40)
-        # Danger Zone: <10 or >40
+        # --- Rate of Change Analysis (No Baseline) ---
+        # Detect rapid temperature changes regardless of absolute value
+        # This catches thermal runaway, sudden cooling, etc.
         
         health_score = 100.0
-        z_score = 0.0 # Simulated Z-score for compatibility
+        z_score = 0.0  # Not used for temperature, kept for compatibility
         
-        if self.temp_min_safe <= temp_mean <= self.temp_max_safe:
-            # Perfect zone
+        # Check rate of change
+        if temp_slope_abs <= self.temp_slope_caution:
+            # Normal rate of change
             health_score = 100.0
-            z_score = 0.5 # Low z-score
+        elif temp_slope_abs <= self.temp_slope_danger:
+            # Caution: Temperature changing rapidly
+            # Linear drop from 100 to 50 based on how fast
+            progress = (temp_slope_abs - self.temp_slope_caution) / (self.temp_slope_danger - self.temp_slope_caution)
+            health_score = 100.0 - progress * 50.0
         else:
-            # Outside safe zone
-            if temp_mean > self.temp_max_safe:
-                excess = temp_mean - self.temp_max_safe
-                if excess <= self.temp_tolerance:
-                    # Caution zone (e.g. 35-40)
-                    # Linear drop from 100 to 50
-                    health_score = 100.0 - (excess / self.temp_tolerance) * 50.0
-                    z_score = 2.5 # Caution level
-                else:
-                    # Danger zone (>40)
-                    health_score = 0.0
-                    z_score = 5.0 # Danger level
-            
-            elif temp_mean < self.temp_min_safe:
-                deficit = self.temp_min_safe - temp_mean
-                if deficit <= self.temp_tolerance:
-                    # Caution zone (e.g. 10-15)
-                    health_score = 100.0 - (deficit / self.temp_tolerance) * 50.0
-                    z_score = 2.5
-                else:
-                    # Danger zone (<10)
-                    health_score = 0.0
-                    z_score = 5.0
+            # Danger: Temperature changing very rapidly
+            # Linear drop from 50 to 0
+            excess = temp_slope_abs - self.temp_slope_danger
+            progress = min(1.0, excess / self.temp_slope_danger)
+            health_score = 50.0 - progress * 50.0
+        
+        # --- Absolute Safety Limits (Hard Cutoffs) ---
+        # Override health score if temperature exceeds critical absolute limits
+        if temp_mean >= self.temp_max_critical:
+            # Critical high temperature - immediate danger
+            health_score = 0.0
+        elif temp_mean <= self.temp_min_critical:
+            # Critical low temperature - immediate danger
+            health_score = 0.0
         
         # Ensure bounds
         health_score = max(0.0, min(100.0, health_score))
@@ -254,9 +258,9 @@ class AnomalyEngine:
             'mean': temp_mean,
             'std': temp_std,
             'slope': temp_slope,
-            'z_score': z_score, # Simulated
-            'z_score_mean': z_score,
-            'z_score_rate': 0.0,
+            'z_score': z_score,  # Not used, kept for compatibility
+            'z_score_mean': 0.0,  # Not used
+            'z_score_rate': 0.0,  # Not used
             'health_score': health_score,
             'state': state,
             'color': color
@@ -290,26 +294,31 @@ class AnomalyEngine:
             else:
                 messages.append("🚨 Abnormally low vibration!")
         
-        # Temperature messages (Absolute limits)
+        # Temperature messages (Rate of change + Absolute limits)
         temp_mean = temp_metrics['mean']
+        temp_slope = temp_metrics.get('slope', 0.0)
+        temp_slope_abs = abs(temp_slope)
         
         if temp_mean < 1.0:
              messages.append("⚪ Temperature sensor disconnected")
-        elif self.temp_min_safe <= temp_mean <= self.temp_max_safe:
-            messages.append(f"✅ Temperature optimal ({temp_mean:.1f}°C)")
+        elif temp_mean >= self.temp_max_critical:
+            messages.append(f"🚨 Temperature CRITICAL HIGH ({temp_mean:.1f}°C) - Absolute limit exceeded!")
+        elif temp_mean <= self.temp_min_critical:
+            messages.append(f"🚨 Temperature CRITICAL LOW ({temp_mean:.1f}°C) - Absolute limit exceeded!")
         else:
-            if temp_mean > self.temp_max_safe:
-                excess = temp_mean - self.temp_max_safe
-                if excess <= self.temp_tolerance:
-                    messages.append(f"⚠️ Temperature slightly high ({temp_mean:.1f}°C)")
+            # Rate of change analysis messages
+            if temp_slope_abs <= self.temp_slope_caution:
+                messages.append(f"✅ Temperature stable ({temp_mean:.1f}°C, {temp_slope:+.3f}°C/s)")
+            elif temp_slope_abs <= self.temp_slope_danger:
+                if temp_slope > 0:
+                    messages.append(f"⚠️ Temperature rising rapidly ({temp_mean:.1f}°C, {temp_slope:+.3f}°C/s)")
                 else:
-                    messages.append(f"🚨 Temperature CRITICAL HIGH ({temp_mean:.1f}°C)!")
-            elif temp_mean < self.temp_min_safe:
-                deficit = self.temp_min_safe - temp_mean
-                if deficit <= self.temp_tolerance:
-                    messages.append(f"⚠️ Temperature slightly low ({temp_mean:.1f}°C)")
+                    messages.append(f"⚠️ Temperature dropping rapidly ({temp_mean:.1f}°C, {temp_slope:+.3f}°C/s)")
+            else:
+                if temp_slope > 0:
+                    messages.append(f"🚨 Temperature rising DANGEROUSLY FAST ({temp_mean:.1f}°C, {temp_slope:+.3f}°C/s)!")
                 else:
-                    messages.append(f"🚨 Temperature CRITICAL LOW ({temp_mean:.1f}°C)!")
+                    messages.append(f"🚨 Temperature dropping DANGEROUSLY FAST ({temp_mean:.1f}°C, {temp_slope:+.3f}°C/s)!")
         
         # Overall health message
         overall_health = min(vib_metrics['health_score'], temp_metrics['health_score'])
@@ -372,6 +381,8 @@ class AnomalyEngine:
             'temp_std': 0.0,
             'temp_slope': 0.0,
             'temp_z_score': 0.0,
+            'temp_z_score_mean': 0.0,
+            'temp_z_score_rate': 0.0,
             'temp_health_score': 100.0,
             'temp_state': 'No Data',
             'temp_color': '#8E8E93',

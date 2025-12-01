@@ -133,8 +133,8 @@ Serial.println(temp_C, 2);
 ## 🎨 Dashboard Features
 
 ### Health Gauges
-- **Vibration Health** - Real-time vibration magnitude scoring
-- **Temperature Health** - Temperature deviation and rate-of-change scoring
+- **Vibration Health** - Real-time vibration magnitude scoring (baseline comparison)
+- **Temperature Health** - Rate of change detection (no baseline, environment-adaptive)
 - **Overall Health** - Combined system health metric
 
 ### Status States
@@ -144,12 +144,12 @@ Serial.println(temp_C, 2);
 
 ### Real-Time Plots
 - **Vibration Magnitude** - Live 3-axis vibration magnitude with threshold bands
-- **Temperature** - Temperature trend with baseline comparison
+- **Temperature** - Temperature trend with rate of change indicators
 
 ### Diagnostic Messages
-- Vibration status
-- Temperature status
-- Rate-of-change alerts
+- Vibration status (baseline deviation)
+- Temperature status (rate of change detection)
+- Rapid temperature change alerts
 - Overall health assessment
 
 ---
@@ -166,10 +166,13 @@ Serial.println(temp_C, 2);
 4. Convert to 0-100 health score
 
 ### Temperature Analysis
-1. Analyze mean temperature deviation
-2. Compute temperature rate of change (°C/s)
-3. Compare both metrics to baseline
-4. Use worst deviation for health score
+1. Compute temperature rate of change via linear regression (°C/s)
+2. Detect rapid changes (no baseline comparison - temperature varies with environment):
+   - **Normal:** Rate < 0.1 °C/s → Health = 100%
+   - **Caution:** Rate 0.1-0.5 °C/s → Health = 100% to 50%
+   - **Danger:** Rate > 0.5 °C/s → Health = 50% to 0%
+3. Enforce absolute safety limits:
+   - **Critical:** Temperature ≥ 40°C or ≤ 10°C → Health = 0% (regardless of rate)
 
 ### Overall Health
 - `overall_health = min(vibration_health, temperature_health)`
@@ -192,9 +195,22 @@ To create your own baseline profile:
 
 Edit thresholds in `anomaly_engine.py`:
 
+**Vibration Sensitivity:**
 ```python
-self.z_caution = 2.0  # Change to 1.5 for more sensitive
-self.z_danger = 3.0   # Change to 2.5 for more sensitive
+self.vib_z_caution = 1.2  # Z-score threshold for caution (default: 1.2σ)
+self.vib_z_danger = 2.0   # Z-score threshold for danger (default: 2.0σ)
+```
+
+**Temperature Rate of Change Sensitivity:**
+```python
+self.temp_slope_caution = 0.1   # °C/s - Caution threshold (default: 0.1 °C/s)
+self.temp_slope_danger = 0.5    # °C/s - Danger threshold (default: 0.5 °C/s)
+```
+
+**Absolute Temperature Limits:**
+```python
+self.temp_min_critical = 10.0  # Critical low temperature (°C)
+self.temp_max_critical = 40.0  # Critical high temperature (°C)
 ```
 
 ### Customizing UI Colors
@@ -267,10 +283,29 @@ This is a professional industrial monitoring system. Use in accordance with your
 - Zero UI freezing via threading
 
 ### Algorithms
-- Moving statistics (mean, std, max)
-- Linear regression for temperature slope
-- Z-score normalization
-- Conservative health scoring
+- **Vibration:** Statistical z-score analysis (baseline comparison)
+- **Temperature:** Rate of change detection via linear regression (no baseline, environment-adaptive)
+- **Safety:** Absolute temperature limits (10-40°C hard cutoffs)
+- Conservative health scoring (minimum of vibration and temperature)
+
+---
+
+## 🌐 Deployment
+
+### Deploy to Streamlit Cloud (Recommended)
+
+**Free hosting for Streamlit apps!**
+
+1. Push your code to GitHub
+2. Visit https://share.streamlit.io/
+3. Connect your repository
+4. Set main file: `motor_monitoring/app.py`
+5. Deploy!
+
+**⚠️ Important:** Serial port reading won't work on cloud platforms (no hardware access). Users can still use **Replay (Demo)** mode with CSV files.
+
+📖 **Full deployment guide:** See `DEPLOYMENT.md`  
+⚡ **Quick start:** See `DEPLOYMENT_QUICKSTART.md`
 
 ---
 
@@ -287,6 +322,9 @@ For technical questions or issues, review the code comments in each module. All 
 ---
 
 **Built with ❤️ for industrial preventive maintenance**
+
+
+
 
 
 

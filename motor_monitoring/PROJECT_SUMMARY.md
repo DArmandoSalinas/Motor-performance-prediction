@@ -99,10 +99,10 @@ motor_monitoring/
 - Identifies normal/caution/danger states
 
 **Temperature Analysis:**
-- Monitors temperature mean and deviation
-- Calculates rate of change (°C/s)
-- Compares to baseline trends
-- Dual z-score analysis (mean + rate)
+- Calculates rate of change via linear regression (°C/s)
+- Detects rapid temperature changes (no baseline comparison - environment-adaptive)
+- Thresholds: 0.1 °C/s (caution), 0.5 °C/s (danger)
+- Enforces absolute safety limits (10-40°C hard cutoffs)
 - Conservative health scoring
 
 **Overall Health:**
@@ -513,6 +513,9 @@ run.bat   # Windows
 **Built with precision and care for industrial preventive maintenance excellence.**
 
 🎊 **Enjoy your new motor monitoring system!** 🎊
+
+
+
 
 
 
