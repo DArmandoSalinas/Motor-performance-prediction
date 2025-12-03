@@ -20,10 +20,34 @@ An industrial-grade, interpretable preventive maintenance system for Sumitomo 3-
 
 ## 🚀 Quick Start
 
-### 1. Installation
+### Prerequisites
+- Python 3.8 or higher
+- Git
+
+### 1. Clone and Install
+
+Open your terminal or command prompt and run:
 
 ```bash
+# Clone the repository
+git clone https://github.com/DArmandoSalinas/Motor-performance-prediction.git
+
+# Navigate to the project folder
+cd Motor-performance-prediction
+
+# Navigate to the application directory
 cd motor_monitoring
+
+# (Optional but recommended) Create and activate a virtual environment
+# Windows:
+python -m venv venv
+venv\Scripts\activate
+
+# Mac/Linux:
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
