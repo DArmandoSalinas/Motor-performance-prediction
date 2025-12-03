@@ -1,6 +1,6 @@
 # Motor Preventive Monitoring System
 
-** Real-Time Dashboard for Industrial Motor Health Monitoring**
+**Real-Time Dashboard for Industrial Motor Health Monitoring**
 
 An industrial-grade, interpretable preventive maintenance system for Sumitomo 3-phase induction motors. Features real-time vibration and temperature monitoring with multi-speed baseline profiling.
 
