@@ -354,7 +354,7 @@ def render_health_gauge(label: str, value: float, color: str, col=None, size: in
         domain={'x': [0, 1], 'y': [0, 1]},
         number={
             'suffix': "",
-            'font': {'size': 36, 'family': 'Inter', 'weight': 700, 'color': gauge_color},
+            'font': {'size': 36, 'family': 'Inter', 'color': gauge_color},
             'valueformat': '.1f'
         },
         delta={
@@ -397,7 +397,7 @@ def render_health_gauge(label: str, value: float, color: str, col=None, size: in
         font={'family': 'Inter', 'color': THEME['text_primary']},
         title={
             'text': label,
-            'font': {'size': 14, 'family': 'Inter', 'weight': 600, 'color': THEME['text_secondary']},
+            'font': {'size': 14, 'family': 'Inter', 'color': THEME['text_secondary']},
             'x': 0.5,
             'xanchor': 'center',
             'y': 0.95,
@@ -518,7 +518,7 @@ def render_time_series_plot(timestamps: np.ndarray, values: np.ndarray,
     fig.update_layout(
         title={
             'text': title,
-            'font': {'size': 16, 'family': 'Inter', 'weight': 600, 'color': THEME['text_primary']},
+            'font': {'size': 16, 'family': 'Inter', 'color': THEME['text_primary']},
             'x': 0,
             'xanchor': 'left',
             'y': 0.98
@@ -619,7 +619,7 @@ def render_3d_vibration_plot(ax: np.ndarray, ay: np.ndarray, az: np.ndarray, col
     fig.update_layout(
         title={
             'text': '3D Vibration Vector',
-            'font': {'size': 14, 'family': 'Inter', 'weight': 600, 'color': THEME['text_primary']}
+            'font': {'size': 14, 'family': 'Inter', 'color': THEME['text_primary']}
         },
         scene=dict(
             xaxis=dict(
@@ -745,7 +745,7 @@ def render_histogram_plot(values: np.ndarray, title: str, xlabel: str,
     fig.update_layout(
         title={
             'text': title,
-            'font': {'size': 16, 'family': 'Inter', 'weight': 600, 'color': THEME['text_primary']},
+            'font': {'size': 16, 'family': 'Inter', 'color': THEME['text_primary']},
             'x': 0,
             'xanchor': 'left',
             'y': 0.98
@@ -822,7 +822,7 @@ def render_box_plot(values: np.ndarray, title: str, ylabel: str,
     fig.update_layout(
         title={
             'text': title,
-            'font': {'size': 16, 'family': 'Inter', 'weight': 600, 'color': THEME['text_primary']},
+            'font': {'size': 16, 'family': 'Inter', 'color': THEME['text_primary']},
             'x': 0,
             'xanchor': 'left',
             'y': 0.98
