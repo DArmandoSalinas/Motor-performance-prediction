@@ -2,13 +2,22 @@
 
 🍏 **Premium Apple-Style Real-Time Dashboard for Industrial Motor Health Monitoring**
 
-An industrial-grade, interpretable preventive maintenance system for Sumitomo 3-phase induction motors. Features real-time vibration and temperature monitoring with multi-speed baseline profiling.
+An industrial-grade, interpretable preventive maintenance system supporting multiple machine types. Features real-time vibration and temperature monitoring with machine-specific baseline profiling and adaptive thresholds.
+
+## Supported Machines
+
+- **Sumitomo 3-Phase Induction Motor** - Multi-speed baseline profiling (50%, 60%, 75%, 90%, 100%)
+- **Haas Mini Mill** - Trajectory-based baseline from multiple operational scenarios
 
 ---
 
 ## 🎯 Features
 
-- **Multi-Speed Baseline Profiling** - Supports 50%, 60%, 75%, 90%, and 100% motor speeds
+- **Multi-Machine Support** - Monitor both Sumitomo motors and Haas Mini Mill machines
+- **Machine-Specific Baselines** - Automatic baseline creation from operational data
+- **Adaptive Thresholds** - Machine-specific sensitivity settings (milling machines use more lenient thresholds)
+- **Multi-Speed Baseline Profiling** - Sumitomo supports 50%, 60%, 75%, 90%, and 100% motor speeds
+- **Trajectory-Based Baselines** - Haas combines all trajectory files for comprehensive baseline
 - **Real-Time Serial Ingestion** - Robust threaded serial reader with auto-reconnection
 - **Rule-Based Anomaly Detection** - No ML, fully interpretable statistical analysis
 - **Health Scoring System** - Intuitive 0-100 health scores with color-coded states
@@ -35,11 +44,17 @@ streamlit run app.py
 
 The dashboard will open in your default web browser at `http://localhost:8501`
 
-### 3. Configure Data Source
+### 3. Select Machine Type
+
+In the sidebar, choose the machine you want to monitor:
+- **Sumitomo 3-Phase Motor** - For motor monitoring with speed-based baselines
+- **Haas Mini Mill** - For milling machine monitoring with trajectory-based baseline
+
+### 4. Configure Data Source
 
 **Option A: Replay Mode (Demo)**
 1. Select "Replay (Demo)" in the sidebar
-2. Choose a baseline CSV file
+2. Choose a CSV file (one file for replay, baseline uses all files for Haas)
 3. Adjust playback speed (1.0x = real-time)
 4. Click "▶️ Start Replay"
 
@@ -49,9 +64,13 @@ The dashboard will open in your default web browser at `http://localhost:8501`
 3. Choose your COM port (or use Auto-detect)
 4. Click "🔗 Connect"
 
-### 4. Select Speed Profile
+### 5. Select Baseline Profile
 
+**For Sumitomo Motor:**
 Choose the motor speed profile (50%, 60%, 75%, 90%, 100%) that matches your current operating conditions.
+
+**For Haas Mini Mill:**
+The baseline automatically combines all trajectory CSV files. Select "baseline" profile.
 
 ---
 
@@ -62,18 +81,22 @@ motor_monitoring/
 │
 ├── app.py                      # Main Streamlit application
 ├── serial_reader.py            # Threaded serial port reader
-├── baseline_loader.py          # Multi-speed baseline engine
-├── anomaly_engine.py           # Rule-based health scoring
+├── baseline_loader.py          # Multi-machine baseline engine
+├── anomaly_engine.py           # Rule-based health scoring (machine-specific)
 ├── ui_components.py            # Apple-style UI components
 ├── utils.py                    # Helper functions
 ├── data_replay.py              # CSV simulation mode
 │
-├── data/                       # Baseline CSV files
-│   ├── motor_50pct.csv
-│   ├── motor_60pct.csv
-│   ├── motor_75pct.csv
-│   ├── motor_90pct.csv
-│   └── motor_100pct.csv
+├── data/                       # Machine-specific baseline data
+│   ├── sumitomo/               # Sumitomo motor baselines
+│   │   ├── motor_50pct.csv
+│   │   ├── motor_60pct.csv
+│   │   ├── motor_75pct.csv
+│   │   ├── motor_90pct.csv
+│   │   └── motor_100pct.csv
+│   └── haas/                   # Haas Mini Mill trajectory files
+│       ├── motor_data_*.csv    # Multiple trajectory files
+│       └── (baseline auto-created from all files)
 │
 ├── requirements.txt            # Python dependencies
 └── README.md                   # This file
@@ -156,23 +179,35 @@ Serial.println(temp_C, 2);
 
 ## 🧮 Health Scoring Algorithm
 
+### Machine-Specific Thresholds
+
+The system uses different sensitivity thresholds based on machine type:
+
+**Sumitomo Motor (Sensitive):**
+- Vibration Caution: 1.2σ
+- Vibration Danger: 2.0σ
+- Temperature Caution: 0.1°C/s
+- Temperature Danger: 0.5°C/s
+- Max Temperature: 40°C
+
+**Haas Mini Mill (Lenient):**
+- Vibration Caution: 3.0σ (milling operations have higher natural vibration)
+- Vibration Danger: 4.5σ (allows for cutting variations)
+- Temperature Caution: 0.2°C/s
+- Temperature Danger: 1.0°C/s
+- Max Temperature: 50°C
+
 ### Vibration Analysis
 1. Compute vibration magnitude: `vib = sqrt(ax² + ay² + az²)`
 2. Calculate z-score: `z = (current_mean - baseline_mean) / baseline_std`
-3. Apply threshold bands:
-   - Normal: z ≤ 2σ
-   - Caution: 2σ < z ≤ 3σ
-   - Danger: z > 3σ
+3. Apply machine-specific threshold bands (see above)
 4. Convert to 0-100 health score
 
 ### Temperature Analysis
 1. Compute temperature rate of change via linear regression (°C/s)
 2. Detect rapid changes (no baseline comparison - temperature varies with environment):
-   - **Normal:** Rate < 0.1 °C/s → Health = 100%
-   - **Caution:** Rate 0.1-0.5 °C/s → Health = 100% to 50%
-   - **Danger:** Rate > 0.5 °C/s → Health = 50% to 0%
-3. Enforce absolute safety limits:
-   - **Critical:** Temperature ≥ 40°C or ≤ 10°C → Health = 0% (regardless of rate)
+   - Uses machine-specific thresholds (see above)
+3. Enforce absolute safety limits (machine-specific max/min temperatures)
 
 ### Overall Health
 - `overall_health = min(vibration_health, temperature_health)`
@@ -184,33 +219,39 @@ Serial.println(temp_C, 2);
 
 ### Custom Baseline Collection
 
-To create your own baseline profile:
-
+**For Sumitomo Motor:**
 1. Run motor at desired speed for 2-5 minutes
 2. Collect data using Arduino and `data_collection_with_timestamps.py`
-3. Save as `motor_XXpct.csv` in `data/` folder
+3. Save as `motor_XXpct.csv` in `data/sumitomo/` folder
 4. Restart application to load new baseline
+
+**For Haas Mini Mill:**
+1. Collect data from multiple trajectories/scenarios when machine is operating normally
+2. Save all trajectory files as `motor_data_*.csv` in `data/haas/` folder
+3. The system automatically combines ALL files to create a comprehensive baseline
+4. For replay, select individual trajectory files
+5. Restart application to load new baseline
 
 ### Adjusting Sensitivity
 
-Edit thresholds in `anomaly_engine.py`:
+Edit thresholds in `anomaly_engine.py` (machine-specific sections):
 
-**Vibration Sensitivity:**
+**For Sumitomo Motor:**
 ```python
-self.vib_z_caution = 1.2  # Z-score threshold for caution (default: 1.2σ)
-self.vib_z_danger = 2.0   # Z-score threshold for danger (default: 2.0σ)
-```
-
-**Temperature Rate of Change Sensitivity:**
-```python
-self.temp_slope_caution = 0.1   # °C/s - Caution threshold (default: 0.1 °C/s)
-self.temp_slope_danger = 0.5    # °C/s - Danger threshold (default: 0.5 °C/s)
-```
-
-**Absolute Temperature Limits:**
-```python
-self.temp_min_critical = 10.0  # Critical low temperature (°C)
+self.vib_z_caution = 1.2  # Z-score threshold for caution
+self.vib_z_danger = 2.0   # Z-score threshold for danger
+self.temp_slope_caution = 0.1   # °C/s - Caution threshold
+self.temp_slope_danger = 0.5    # °C/s - Danger threshold
 self.temp_max_critical = 40.0  # Critical high temperature (°C)
+```
+
+**For Haas Mini Mill:**
+```python
+self.vib_z_caution = 3.0   # More lenient for milling operations
+self.vib_z_danger = 4.5    # More lenient for cutting variations
+self.temp_slope_caution = 0.2   # °C/s - More lenient
+self.temp_slope_danger = 1.0    # °C/s - More lenient
+self.temp_max_critical = 50.0  # Higher for milling operations
 ```
 
 ### Customizing UI Colors

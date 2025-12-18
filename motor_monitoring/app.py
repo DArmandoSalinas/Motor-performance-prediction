@@ -47,24 +47,41 @@ def init_session_state():
         st.session_state.current_speed = "100"
         st.session_state.mode = "replay"  # 'serial' or 'replay'
         st.session_state.last_update = time.time()
+        st.session_state.machine_type = "sumitomo"  # 'sumitomo' or 'haas'
 
 
-def load_baselines():
+def load_baselines(machine_type: str = None):
     """Load all baseline CSV files."""
-    if st.session_state.baseline_loader is None:
-        with st.spinner("Loading baseline profiles..."):
+    # Use provided machine_type or current session state
+    machine_type = machine_type or st.session_state.machine_type
+    
+    # Check if we need to reload (machine type changed or not initialized)
+    needs_reload = (
+        st.session_state.baseline_loader is None or
+        st.session_state.baseline_loader.machine_type != machine_type
+    )
+    
+    if needs_reload:
+        with st.spinner(f"Loading baseline profiles for {machine_type}..."):
             try:
                 data_dir = Path(__file__).parent / "data"
-                loader = BaselineLoader(str(data_dir))
+                loader = BaselineLoader(str(data_dir), machine_type=machine_type)
                 baselines = loader.load_all_baselines()
                 
                 st.session_state.baseline_loader = loader
                 st.session_state.baselines = baselines
+                st.session_state.machine_type = machine_type
                 
                 # Set initial speed to first available
                 available_speeds = loader.get_available_speeds()
                 if available_speeds:
-                    st.session_state.current_speed = available_speeds[-1]  # Default to highest speed
+                    if machine_type == "sumitomo":
+                        st.session_state.current_speed = available_speeds[-1]  # Default to highest speed
+                    else:  # haas
+                        st.session_state.current_speed = available_speeds[0]  # Default to baseline
+                else:
+                    # Fallback if no speeds available
+                    st.session_state.current_speed = "baseline" if machine_type == "haas" else "100"
                 
                 return True
             except Exception as e:
@@ -120,7 +137,9 @@ def update_anomaly_engine(speed: str):
     """
     if st.session_state.baselines and speed in st.session_state.baselines:
         baseline = st.session_state.baselines[speed]
-        st.session_state.anomaly_engine = AnomalyEngine(baseline)
+        # Pass machine_type to AnomalyEngine for machine-specific thresholds
+        machine_type = st.session_state.get('machine_type', 'sumitomo')
+        st.session_state.anomaly_engine = AnomalyEngine(baseline, machine_type=machine_type)
         st.session_state.current_speed = speed
 
 
@@ -128,6 +147,33 @@ def render_sidebar():
     """Render sidebar controls."""
     with st.sidebar:
         st.markdown("## ⚙️ Configuration")
+        
+        # Machine selection
+        machine_options = {
+            "Sumitomo 3-Phase Motor": "sumitomo",
+            "Haas Mini Mill": "haas"
+        }
+        
+        selected_machine_name = [k for k, v in machine_options.items() if v == st.session_state.machine_type][0] if st.session_state.machine_type in machine_options.values() else "Sumitomo 3-Phase Motor"
+        
+        machine_index = list(machine_options.keys()).index(selected_machine_name)
+        new_machine_name = st.selectbox(
+            "Machine Type",
+            list(machine_options.keys()),
+            index=machine_index
+        )
+        new_machine_type = machine_options[new_machine_name]
+        
+        # Reload baselines if machine type changed
+        if new_machine_type != st.session_state.machine_type:
+            st.session_state.baseline_loader = None  # Force reload
+            st.session_state.baselines = None
+            st.session_state.anomaly_engine = None
+            if load_baselines(new_machine_type):
+                if st.session_state.baselines:
+                    update_anomaly_engine(st.session_state.current_speed)
+        
+        st.markdown("---")
         
         # Mode selection
         mode = st.radio(
@@ -142,16 +188,29 @@ def render_sidebar():
         if "Replay" in mode:
             st.markdown("### 📼 Replay Settings")
             
-            # CSV file selection
-            data_dir = Path(__file__).parent / "data"
-            csv_files = list(data_dir.glob("*.csv"))
+            if st.session_state.machine_type == "haas":
+                st.info("💡 **Note:** Baseline uses ALL trajectory files combined. For replay, select ONE individual trajectory file.")
+            
+            # CSV file selection (machine-specific)
+            machine_data_dir = Path(__file__).parent / "data" / st.session_state.machine_type
+            csv_files = list(machine_data_dir.glob("*.csv"))
             csv_names = [f.name for f in csv_files]
             
             if csv_names:
+                # Default selection based on machine type
+                default_index = 0
+                if st.session_state.machine_type == "sumitomo":
+                    if "motor_100pct.csv" in csv_names:
+                        default_index = csv_names.index("motor_100pct.csv")
+                else:  # haas
+                    # Default to first file (or could use a specific one)
+                    default_index = 0
+                
                 selected_csv = st.selectbox(
-                    "Select CSV file",
+                    "Select CSV file to replay",
                     csv_names,
-                    index=csv_names.index("motor_100pct.csv") if "motor_100pct.csv" in csv_names else 0
+                    index=default_index,
+                    help="Select one individual trajectory file to replay. The baseline uses ALL files combined."
                 )
                 
                 playback_speed = st.slider(
@@ -163,10 +222,10 @@ def render_sidebar():
                 )
                 
                 if st.button("▶️ Start Replay", use_container_width=True):
-                    csv_path = data_dir / selected_csv
+                    csv_path = machine_data_dir / selected_csv
                     initialize_data_source("replay", csv_path=str(csv_path), playback_speed=playback_speed)
             else:
-                st.error("No CSV files found in data directory")
+                st.error(f"No CSV files found in {st.session_state.machine_type} data directory")
         
         else:
             st.markdown("### 🔌 Serial Settings")
@@ -185,35 +244,58 @@ def render_sidebar():
                 if st.button("🔗 Connect", use_container_width=True):
                     initialize_data_source("serial", port=port)
             else:
-                st.warning("No serial ports detected")
+                st.warning("⚠️ No serial ports detected")
+                st.info("💡 **Tip:** Serial ports are only available when running locally. On cloud platforms, use **Replay (Demo)** mode instead.")
                 if st.button("🔄 Refresh Ports", use_container_width=True):
                     st.rerun()
         
         st.markdown("---")
         
-        # Speed selection
+        # Speed/Trajectory selection
         if st.session_state.baseline_loader:
-            st.markdown("### 🎚️ Speed Profile")
-            available_speeds = st.session_state.baseline_loader.get_available_speeds()
-            
-            speed_options = [f"{s}%" for s in available_speeds]
-            current_option = f"{st.session_state.current_speed}%"
-            
-            if current_option in speed_options:
-                current_index = speed_options.index(current_option)
-            else:
-                current_index = len(speed_options) - 1 if speed_options else 0
-            
-            selected = st.selectbox(
-                "Baseline Speed",
-                speed_options,
-                index=current_index
-            )
-            
-            new_speed = selected.replace('%', '')
-            if new_speed != st.session_state.current_speed:
-                update_anomaly_engine(new_speed)
-                st.rerun()
+            if st.session_state.machine_type == "sumitomo":
+                st.markdown("### 🎚️ Speed Profile")
+                available_speeds = st.session_state.baseline_loader.get_available_speeds()
+                
+                speed_options = [f"{s}%" for s in available_speeds]
+                current_option = f"{st.session_state.current_speed}%"
+                
+                if current_option in speed_options:
+                    current_index = speed_options.index(current_option)
+                else:
+                    current_index = len(speed_options) - 1 if speed_options else 0
+                
+                selected = st.selectbox(
+                    "Baseline Speed",
+                    speed_options,
+                    index=current_index
+                )
+                
+                new_speed = selected.replace('%', '')
+                if new_speed != st.session_state.current_speed:
+                    update_anomaly_engine(new_speed)
+                    st.rerun()
+            else:  # haas
+                st.markdown("### 📊 Baseline Profile")
+                available_speeds = st.session_state.baseline_loader.get_available_speeds()
+                
+                if available_speeds:
+                    # For Haas, we typically have just "baseline"
+                    baseline_info = ""
+                    if st.session_state.baselines and "baseline" in st.session_state.baselines:
+                        b = st.session_state.baselines["baseline"]
+                        baseline_info = f" ({b['sample_count']:,} samples from all trajectories)"
+                    
+                    selected = st.selectbox(
+                        "Baseline Profile",
+                        available_speeds,
+                        index=0 if st.session_state.current_speed in available_speeds else 0,
+                        help=f"Baseline combines ALL trajectory CSV files{baseline_info}"
+                    )
+                    
+                    if selected != st.session_state.current_speed:
+                        update_anomaly_engine(selected)
+                        st.rerun()
         
         st.markdown("---")
         
@@ -244,10 +326,16 @@ def render_main_dashboard():
     # Apply premium dark theme styling
     ui.apply_premium_style()
     
-    # Header
+    # Header with machine-specific title
+    machine_names = {
+        "sumitomo": "Sumitomo 3-Phase Motor",
+        "haas": "Haas Mini Mill"
+    }
+    machine_name = machine_names.get(st.session_state.machine_type, "Motor")
+    
     ui.render_header(
         "Motor Health Monitor",
-        "Real-time preventive monitoring for Sumitomo 3-phase induction motor"
+        f"Real-time preventive monitoring for {machine_name}"
     )
     
     # Check if we have data source
@@ -658,13 +746,16 @@ def main():
     # Initialize session state
     init_session_state()
     
-    # Load baselines (only once)
+    # Load baselines (only once or when machine changes)
     if not st.session_state.initialized:
         if load_baselines():
             # Initialize anomaly engine with default speed
             if st.session_state.baselines:
                 update_anomaly_engine(st.session_state.current_speed)
             st.session_state.initialized = True
+    else:
+        # Ensure baselines are loaded for current machine type
+        load_baselines()
     
     # Render sidebar
     render_sidebar()

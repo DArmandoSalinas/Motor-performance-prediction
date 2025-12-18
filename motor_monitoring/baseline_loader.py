@@ -15,16 +15,27 @@ class BaselineLoader:
     Loads and processes baseline CSV files for multiple motor speeds.
     """
     
-    def __init__(self, data_dir: str = "data"):
+    def __init__(self, data_dir: str = "data", machine_type: str = "sumitomo"):
         """
         Initialize the baseline loader.
         
         Args:
-            data_dir: Directory containing baseline CSV files
+            data_dir: Base directory containing machine-specific subdirectories
+            machine_type: Type of machine ("sumitomo" or "haas")
         """
         self.data_dir = data_dir
+        self.machine_type = machine_type
         self.baselines = {}
-        self.speeds = ["50", "60", "75", "90", "100"]
+        
+        # Different speed configurations for different machines
+        if machine_type == "sumitomo":
+            self.speeds = ["50", "60", "75", "90", "100"]
+            self.machine_dir = "sumitomo"
+        elif machine_type == "haas":
+            self.speeds = ["baseline"]  # Haas uses trajectory-based baselines
+            self.machine_dir = "haas"
+        else:
+            raise ValueError(f"Unknown machine type: {machine_type}")
         
     def load_all_baselines(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -33,22 +44,52 @@ class BaselineLoader:
         Returns:
             Dictionary mapping speed percentages to baseline statistics
         """
-        for speed in self.speeds:
-            csv_path = os.path.join(self.data_dir, f"motor_{speed}pct.csv")
+        machine_data_dir = os.path.join(self.data_dir, self.machine_dir)
+        
+        if self.machine_type == "sumitomo":
+            # Sumitomo: Load speed-based baselines
+            for speed in self.speeds:
+                csv_path = os.path.join(machine_data_dir, f"motor_{speed}pct.csv")
+                
+                if not os.path.exists(csv_path):
+                    print(f"⚠️  Warning: Baseline file not found: {csv_path}")
+                    continue
+                
+                try:
+                    baseline = self._load_baseline(csv_path, speed)
+                    self.baselines[speed] = baseline
+                    print(f"✅ Loaded baseline for {speed}% speed")
+                except Exception as e:
+                    print(f"❌ Error loading {csv_path}: {str(e)}")
+        
+        elif self.machine_type == "haas":
+            # Haas: Load trajectory-based baseline (combine all good trajectories)
+            # First, try to find a combined baseline file
+            baseline_path = os.path.join(machine_data_dir, "haas_baseline.csv")
             
-            if not os.path.exists(csv_path):
-                print(f"⚠️  Warning: Baseline file not found: {csv_path}")
-                continue
-            
-            try:
-                baseline = self._load_baseline(csv_path, speed)
-                self.baselines[speed] = baseline
-                print(f"✅ Loaded baseline for {speed}% speed")
-            except Exception as e:
-                print(f"❌ Error loading {csv_path}: {str(e)}")
+            if os.path.exists(baseline_path):
+                # Use pre-computed baseline
+                try:
+                    baseline = self._load_baseline(baseline_path, "baseline")
+                    self.baselines["baseline"] = baseline
+                    print(f"✅ Loaded Haas baseline from {baseline_path}")
+                except Exception as e:
+                    print(f"❌ Error loading {baseline_path}: {str(e)}")
+            else:
+                # Create baseline from ALL available CSV files (combining all trajectories)
+                csv_files = sorted([f for f in os.listdir(machine_data_dir) if f.endswith('.csv')])
+                if csv_files:
+                    print(f"📊 Creating Haas baseline from ALL {len(csv_files)} trajectory files...")
+                    print(f"   Files: {', '.join(csv_files[:5])}{'...' if len(csv_files) > 5 else ''}")
+                    try:
+                        baseline = self._load_combined_baseline(machine_data_dir, csv_files)
+                        self.baselines["baseline"] = baseline
+                        print(f"✅ Created Haas baseline from {len(csv_files)} files ({baseline['sample_count']} total samples)")
+                    except Exception as e:
+                        print(f"❌ Error creating baseline: {str(e)}")
         
         if not self.baselines:
-            raise ValueError("No baseline files could be loaded!")
+            raise ValueError(f"No baseline files could be loaded for {self.machine_type}!")
         
         return self.baselines
     
@@ -66,10 +107,66 @@ class BaselineLoader:
         # Read CSV
         df = pd.read_csv(csv_path)
         
+        # Use the DataFrame-based method
+        return self._load_baseline_from_df(df, speed)
+    
+    def _load_combined_baseline(self, data_dir: str, csv_files: list) -> Dict[str, Any]:
+        """
+        Load and combine ALL CSV files into a single baseline.
+        This combines all trajectory data to create a comprehensive baseline profile.
+        
+        Args:
+            data_dir: Directory containing CSV files
+            csv_files: List of CSV filenames to combine (all files will be used)
+            
+        Returns:
+            Combined baseline dictionary
+        """
+        all_dfs = []
+        loaded_count = 0
+        
+        for csv_file in csv_files:
+            csv_path = os.path.join(data_dir, csv_file)
+            try:
+                df = pd.read_csv(csv_path)
+                required_cols = ['timestamp', 'ax_g', 'ay_g', 'az_g', 'temp_C']
+                if all(col in df.columns for col in required_cols):
+                    all_dfs.append(df)
+                    loaded_count += 1
+                else:
+                    print(f"⚠️  Warning: {csv_file} missing required columns, skipping")
+            except Exception as e:
+                print(f"⚠️  Warning: Could not load {csv_file}: {str(e)}")
+        
+        if not all_dfs:
+            raise ValueError("No valid CSV files found to create baseline")
+        
+        print(f"   ✓ Loaded {loaded_count}/{len(csv_files)} files successfully")
+        
+        # Combine all dataframes into one comprehensive dataset
+        combined_df = pd.concat(all_dfs, ignore_index=True)
+        combined_df = combined_df.sort_values('timestamp').reset_index(drop=True)
+        
+        print(f"   ✓ Combined {len(combined_df)} total samples from all trajectories")
+        
+        # Use the combined data to create baseline
+        return self._load_baseline_from_df(combined_df, "baseline")
+    
+    def _load_baseline_from_df(self, df: pd.DataFrame, speed: str) -> Dict[str, Any]:
+        """
+        Create baseline from a DataFrame (used internally).
+        
+        Args:
+            df: DataFrame with sensor data
+            speed: Speed/trajectory identifier
+            
+        Returns:
+            Baseline dictionary
+        """
         # Validate required columns
         required_cols = ['timestamp', 'ax_g', 'ay_g', 'az_g', 'temp_C']
         if not all(col in df.columns for col in required_cols):
-            raise ValueError(f"CSV must contain columns: {required_cols}")
+            raise ValueError(f"DataFrame must contain columns: {required_cols}")
         
         # Extract data
         timestamps = df['timestamp'].values
@@ -107,9 +204,15 @@ class BaselineLoader:
         if len(temps) > 10:
             temp_diffs = np.diff(temps)
             time_diffs = np.diff(timestamps)
-            temp_rates = temp_diffs / time_diffs
-            temp_rate_mean = np.mean(temp_rates)
-            temp_rate_std = np.std(temp_rates)
+            # Avoid division by zero
+            valid_mask = time_diffs > 0
+            if np.any(valid_mask):
+                temp_rates = temp_diffs[valid_mask] / time_diffs[valid_mask]
+                temp_rate_mean = np.mean(temp_rates)
+                temp_rate_std = np.std(temp_rates) if len(temp_rates) > 1 else 0.0
+            else:
+                temp_rate_mean = 0.0
+                temp_rate_std = 0.0
         else:
             temp_rate_mean = 0.0
             temp_rate_std = 0.0
@@ -215,6 +318,9 @@ def load_baselines(data_dir: str = "data") -> Dict[str, Dict[str, Any]]:
     """
     loader = BaselineLoader(data_dir)
     return loader.load_all_baselines()
+
+
+
 
 
 

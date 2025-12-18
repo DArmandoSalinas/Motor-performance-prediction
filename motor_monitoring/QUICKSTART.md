@@ -58,11 +58,18 @@ After running the launcher, your browser will automatically open to:
 http://localhost:8501
 ```
 
-### 2. Configure Data Source (Choose One)
+### 2. Select Machine Type
+In the sidebar, choose the machine you want to monitor:
+- **Sumitomo 3-Phase Motor** - For motor monitoring
+- **Haas Mini Mill** - For milling machine monitoring
+
+### 3. Configure Data Source (Choose One)
 
 #### Option A: Demo Mode (No Hardware Required)
 1. In the sidebar, select **"Replay (Demo)"**
-2. Choose a CSV file: `motor_100pct.csv` (recommended)
+2. Choose a CSV file:
+   - **Sumitomo:** `motor_100pct.csv` (recommended)
+   - **Haas:** Any trajectory file (baseline uses all files combined)
 3. Set playback speed: `1.0x` for real-time
 4. Click **"▶️ Start Replay"**
 
@@ -72,13 +79,18 @@ http://localhost:8501
 3. Choose your COM port or use **"Auto-detect"**
 4. Click **"🔗 Connect"**
 
-### 3. Select Motor Speed Profile
+### 4. Select Baseline Profile
+
+**For Sumitomo Motor:**
 In the sidebar under **"🎚️ Speed Profile"**, select the baseline that matches your current motor operating speed:
 - 50% - Low speed operation
 - 60% - Medium-low speed
 - 75% - Medium speed
 - 90% - High speed
 - **100% - Full speed (default)**
+
+**For Haas Mini Mill:**
+The baseline automatically combines all trajectory files. Select **"baseline"** profile.
 
 ### 4. Monitor Health Metrics
 
@@ -260,6 +272,9 @@ Serial.println(temp, 2);
 ---
 
 **Ready to monitor your motor? Run `./run.sh` (Mac/Linux) or `run.bat` (Windows) to get started!**
+
+
+
 
 
 

@@ -20,29 +20,45 @@ class AnomalyEngine:
     Rule-based anomaly detection engine for motor health monitoring.
     """
     
-    def __init__(self, baseline: Dict[str, Any]):
+    def __init__(self, baseline: Dict[str, Any], machine_type: str = "sumitomo"):
         """
         Initialize anomaly engine with baseline.
         
         Args:
             baseline: Baseline statistics dictionary
+            machine_type: Type of machine ("sumitomo" or "haas") - affects threshold sensitivity
         """
         self.baseline = baseline
         self.speed = baseline['speed']
+        self.machine_type = machine_type
         
-        # Alert thresholds
-        # Vibration (Even more sensitive)
-        self.vib_z_caution = 1.2  # Was 1.5
-        self.vib_z_danger = 2.0   # Was 2.5
-        
-        # Temperature (Rate of change only - no baseline comparison)
-        # These are absolute rate thresholds in °C/s
-        self.temp_slope_caution = 0.1   # °C/s - Caution if changing faster than this
-        self.temp_slope_danger = 0.5    # °C/s - Danger if changing faster than this
-        
-        # Absolute safety limits (hard cutoffs)
-        self.temp_min_critical = 10.0  # Critical low
-        self.temp_max_critical = 40.0  # Critical high
+        # Machine-specific alert thresholds
+        if machine_type == "haas":
+            # Haas Mini Mill: Very lenient thresholds due to higher natural vibration
+            # from cutting operations, tool changes, and machine dynamics
+            # Milling machines have inherently more variation in normal operation
+            self.vib_z_caution = 3.0   # Very lenient - only alert on significant deviations
+            self.vib_z_danger = 4.5     # Very lenient - only alert on extreme anomalies
+            
+            # Temperature thresholds (milling machines can have more temp variation)
+            self.temp_slope_caution = 0.2   # °C/s - More lenient for machine operations
+            self.temp_slope_danger = 1.0    # °C/s - Very lenient - only alert on rapid changes
+            
+            # Absolute safety limits (same for all machines)
+            self.temp_min_critical = 10.0
+            self.temp_max_critical = 50.0  # Higher for milling operations
+        else:
+            # Sumitomo Motor: Original sensitive thresholds
+            self.vib_z_caution = 1.2  # Was 1.5
+            self.vib_z_danger = 2.0   # Was 2.5
+            
+            # Temperature (Rate of change only - no baseline comparison)
+            self.temp_slope_caution = 0.1   # °C/s - Caution if changing faster than this
+            self.temp_slope_danger = 0.5    # °C/s - Danger if changing faster than this
+            
+            # Absolute safety limits (hard cutoffs)
+            self.temp_min_critical = 10.0  # Critical low
+            self.temp_max_critical = 40.0  # Critical high
     
     def analyze(self, data: Dict[str, np.ndarray], window_duration: float = 2.0) -> Dict[str, Any]:
         """
@@ -164,7 +180,7 @@ class AnomalyEngine:
         # Use the worst of the two scores
         z_score = max(abs(z_score_mean), abs(z_score_max))
         
-        # Compute health score
+        # Compute health score with machine-specific thresholds
         health_score = health_score_from_z(z_score, self.vib_z_caution, self.vib_z_danger)
         
         # Get state
