@@ -351,6 +351,7 @@ This is a professional industrial monitoring system. Use in accordance with your
 ---
 
 ## 📞 Support
+salinas.diegoarmando03@gmail.com
 
 For technical questions or issues, review the code comments in each module. All functions are documented with clear docstrings.
 
