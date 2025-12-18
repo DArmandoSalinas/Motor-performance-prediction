@@ -1,6 +1,6 @@
 # Motor Preventive Monitoring System
 
-🍏 **Premium Apple-Style Real-Time Dashboard for Industrial Motor Health Monitoring**
+🍏 **Real-Time Dashboard for Industrial Motor Health Monitoring**
 
 An industrial-grade, interpretable preventive maintenance system supporting multiple machine types. Features real-time vibration and temperature monitoring with machine-specific baseline profiling and adaptive thresholds.
 
